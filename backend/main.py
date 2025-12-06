@@ -68,11 +68,6 @@ def root():
     return {"status": "live", "version": "0.1"}
 
 
-@app.get("/hi")
-def hi():
-    return {"message": "Hello, World!"}
-
-
 @app.get("/students")
 def get_students(search: Optional[str] = None, min_cgpa: Optional[float] = None):
     conn = sqlite3.connect(DB)
@@ -82,8 +77,11 @@ def get_students(search: Optional[str] = None, min_cgpa: Optional[float] = None)
     if search:
         query += f" WHERE name LIKE '%{search}%'"
     if min_cgpa:
+        query += f" WHERE cgpa >= {min_cgpa}"
+    if search and min_cgpa:
         query += f" AND cgpa >= {min_cgpa}"
 
+    print("Query", query)
     rows = conn.execute(query).fetchall()
     conn.close()
 
@@ -162,10 +160,12 @@ def update_student(student_id: int, data: Student = Body(...)):
 
     # update student data
     cursor.execute(
-        "UPDATE STUDENTS SET name=?, email=?, skills=?, internships=?, projects=? WHERE id=?",
+        "UPDATE STUDENTS SET name=?, cgpa=?, email=?, phone=?, skills=?, internships=?, projects=? WHERE id=?",
         (
             data.name,
+            data.cgpa,
             data.email,
+            data.phone,
             json.dumps(data.skills),
             json.dumps(data.internships),
             json.dumps([p.dict() for p in (data.projects or [])]),
