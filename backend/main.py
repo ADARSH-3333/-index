@@ -269,7 +269,7 @@ async def update_student(student_id: int, data: Student = Body(...)):
     # update student data
     await conn.execute(
         "UPDATE STUDENTS SET name=$1, cgpa=$2, email=$3, phone=$4, skills=$5, internships=$6, projects=$7 WHERE id=$8",
-        (
+        
             data.name,
             data.cgpa,
             data.email,
@@ -278,9 +278,8 @@ async def update_student(student_id: int, data: Student = Body(...)):
             json.dumps(data.internships),
             json.dumps([p.dict() for p in (data.projects or [])]),
             student_id,
-        ),
-    )
-
+        )
+    
     return 
 
 
@@ -292,12 +291,14 @@ async def delete_student(student_id: int):
         student = await conn.fetchrow(
             ("SELECT * FROM STUDENTS WHERE id=$1", student_id)
         )
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
 
-    # delete student
-    await conn.execute("DELETE FROM STUDENTS WHERE id=$1", student_id)
-
+        # delete student
+        await conn.execute(
+            "DELETE FROM STUDENTS WHERE id=$1",
+            student_id
+        )
     return
 
 
