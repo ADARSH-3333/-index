@@ -1,132 +1,89 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Search, X, ChevronLeft, ChevronRight } from "lucide-react"
-import { Suspense } from "react"
-import { Navigation } from "@/components/navigation"
-import { StudentCard } from "@/components/student-card"
-import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-
-// Mock data based on the provided JSON
-const mockStudents = [
-  {
-    id: 1,
-    name: "John Doe",
-    email: "john@example.com",
-    cgpa: 8.1,
-    skills: ["Python", "SQL"],
-    internships: ["Backend Stabber"],
-    placed: true,
-  },
-  {
-    id: 2,
-    name: "Aarav Menon",
-    email: "aarav@example.com",
-    cgpa: 9.0,
-    skills: ["Python", "FastAPI", "ML"],
-    internships: ["DS Intern"],
-    placed: false,
-  },
-  {
-    id: 3,
-    name: "Riya Sharma",
-    email: "riya.sharma@example.com",
-    cgpa: 9.3,
-    skills: ["React", "Node.js"],
-    internships: ["Frontend Intern"],
-    placed: false,
-  },
-  {
-    id: 4,
-    name: "Vikram Rao",
-    email: "vikram.rao@example.com",
-    cgpa: 7.5,
-    skills: ["C++", "DSA"],
-    internships: ["nan"],
-    placed: false,
-  },
-  {
-    id: 5,
-    name: "Neha Iyer",
-    email: "neha.iyer@example.com",
-    cgpa: 8.7,
-    skills: ["Python", "SQL", "ML"],
-    internships: ["Research Intern"],
-    placed: true,
-  },
-  {
-    id: 6,
-    name: "Karthik Nair",
-    email: "karthik.nair@example.com",
-    cgpa: 7.8,
-    skills: ["Go", "Docker"],
-    internships: ["Backend Intern"],
-    placed: false,
-  },
-  {
-    id: 7,
-    name: "Saanvi Kapoor",
-    email: "saanvi.kapoor@example.com",
-    cgpa: 9.5,
-    skills: ["React", "Next.js", "TypeScript"],
-    internships: ["Frontend Intern"],
-    placed: false,
-  },
-  {
-    id: 8,
-    name: "Aditya Verma",
-    email: "aditya.verma@example.com",
-    cgpa: 8.3,
-    skills: ["Java", "Spring Boot"],
-    internships: ["Software Intern"],
-    placed: true,
-  },
-]
+import * as React from "react";
+import { Search, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Navigation } from "@/components/navigation";
+import { StudentCard } from "@/components/student-card";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { studentsApi, type Student } from "@/lib/api";
 
 export default function StudentsPage() {
-  return (
-    <Suspense fallback={null}>
-      <StudentsContent />
-    </Suspense>
-  )
-}
+  const [students, setStudents] = React.useState<Student[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [filter, setFilter] = React.useState<
+    "all" | "placed" | "top" | "available"
+  >("all");
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const studentsPerPage = 10;
 
-function StudentsContent() {
-  const [search, setSearch] = React.useState("")
-  const [filter, setFilter] = React.useState<"all" | "placed" | "top" | "available">("all")
-  const [currentPage, setCurrentPage] = React.useState(1)
-  const studentsPerPage = 5
+  // Fetch students with debounce
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchStudents();
+    }, 300); // Debounce 300ms
 
-  const filteredStudents = mockStudents.filter((student) => {
-    const matchesSearch =
-      student.name.toLowerCase().includes(search.toLowerCase()) ||
-      student.email.toLowerCase().includes(search.toLowerCase()) ||
-      student.skills.some((s) => s.toLowerCase().includes(search.toLowerCase()))
+    return () => clearTimeout(timeoutId);
+  }, [search, filter]);
 
-    if (filter === "placed") return matchesSearch && student.placed
-    if (filter === "available") return matchesSearch && !student.placed
-    if (filter === "top") return matchesSearch && (student.cgpa || 0) >= 8.5
-    return matchesSearch
-  })
+  const fetchStudents = async () => {
+    setLoading(true);
+    setError(null);
 
-  const totalPages = Math.ceil(filteredStudents.length / studentsPerPage)
-  const startIndex = (currentPage - 1) * studentsPerPage
-  const endIndex = startIndex + studentsPerPage
-  const currentStudents = filteredStudents.slice(startIndex, endIndex)
+    try {
+      const params: any = {
+        search: search || undefined,
+        limit: 100, // Get more for client-side filtering
+      };
+
+      // Add filter-specific params
+      if (filter === "top") {
+        params.min_cgpa = 8.5;
+      }
+
+      const data = await studentsApi.getAll(params);
+
+      // Client-side filtering for placed/available
+      let filtered = data;
+      if (filter === "placed") {
+        filtered = data.filter((s) => s.placed);
+      } else if (filter === "available") {
+        filtered = data.filter((s) => !s.placed);
+      }
+
+      setStudents(filtered);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load students");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalPages = Math.ceil(students.length / studentsPerPage);
+  const startIndex = (currentPage - 1) * studentsPerPage;
+  const endIndex = startIndex + studentsPerPage;
+  const currentStudents = students.slice(startIndex, endIndex);
 
   React.useEffect(() => {
-    setCurrentPage(1)
-  }, [search, filter])
+    setCurrentPage(1);
+  }, [search, filter]);
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation currentPage="students" userName="Admin User" userRole="admin" />
+      <Navigation
+        currentPage="students"
+        userName="Admin User"
+        userRole="admin"
+      />
 
       <main className="max-w-7xl mx-auto px-10 py-16">
         <header className="mb-12">
           <h1 className="mb-2">Students</h1>
-          <p className="text-[18px] text-muted-foreground">{filteredStudents.length} students in database</p>
+          <p className="text-[18px] text-muted-foreground">
+            {students.length} students in database
+          </p>
         </header>
 
         <section className="space-y-8">
@@ -140,7 +97,10 @@ function StudentsContent() {
               className="h-[60px] pl-16 pr-12 text-[18px] rounded-xl border-border focus:border-primary focus:border-2 transition-all shadow-none"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="absolute right-6 top-1/2 -translate-y-1/2">
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-6 top-1/2 -translate-y-1/2"
+              >
                 <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
               </button>
             )}
@@ -148,86 +108,157 @@ function StudentsContent() {
 
           {/* Filter Chips */}
           <div className="flex flex-wrap gap-4">
-            <FilterChip label="All" isActive={filter === "all"} onClick={() => setFilter("all")} />
-            <FilterChip label="Placed" isActive={filter === "placed"} onClick={() => setFilter("placed")} />
-            <FilterChip label="8.5+ CGPA" isActive={filter === "top"} onClick={() => setFilter("top")} />
-            <FilterChip label="Available" isActive={filter === "available"} onClick={() => setFilter("available")} />
+            <FilterChip
+              label="All"
+              isActive={filter === "all"}
+              onClick={() => setFilter("all")}
+            />
+            <FilterChip
+              label="Placed"
+              isActive={filter === "placed"}
+              onClick={() => setFilter("placed")}
+            />
+            <FilterChip
+              label="8.5+ CGPA"
+              isActive={filter === "top"}
+              onClick={() => setFilter("top")}
+            />
+            <FilterChip
+              label="Available"
+              isActive={filter === "available"}
+              onClick={() => setFilter("available")}
+            />
           </div>
+
+          {/* Loading State */}
+          {loading && (
+            <div className="space-y-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border rounded-xl p-8 animate-pulse">
+                  <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-4" />
+                  <div className="flex gap-2">
+                    <div className="h-8 bg-gray-200 rounded w-20" />
+                    <div className="h-8 bg-gray-200 rounded w-24" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="py-12 text-center border-2 border-red-200 rounded-xl bg-red-50">
+              <p className="text-[24px] font-bold text-red-600">
+                Error loading students
+              </p>
+              <p className="text-red-500 mb-4">{error}</p>
+              <button
+                onClick={fetchStudents}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Retry
+              </button>
+            </div>
+          )}
 
           {/* Student List */}
-          <div className="grid gap-6">
-            {currentStudents.map((student) => (
-              <StudentCard key={student.id} student={student} />
-            ))}
+          {!loading && !error && (
+            <>
+              <div className="grid gap-6">
+                {currentStudents.map((student) => (
+                  <StudentCard key={student.id} student={student} />
+                ))}
 
-            {filteredStudents.length === 0 && (
-              <div className="py-20 text-center border-2 border-dashed border-border rounded-xl">
-                <p className="text-[24px] font-bold text-muted-foreground">No students found</p>
-                <p className="text-muted-foreground">Try adjusting your search or filters</p>
+                {students.length === 0 && (
+                  <div className="py-20 text-center border-2 border-dashed border-border rounded-xl">
+                    <p className="text-[24px] font-bold text-muted-foreground">
+                      No students found
+                    </p>
+                    <p className="text-muted-foreground">
+                      Try adjusting your search or filters
+                    </p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {filteredStudents.length > 0 && totalPages > 1 && (
-            <div className="flex items-center justify-between pt-8 border-t border-border">
-              <p className="text-muted-foreground">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredStudents.length)} of {filteredStudents.length}{" "}
-                students
-              </p>
+              {/* Pagination */}
+              {students.length > 0 && totalPages > 1 && (
+                <div className="flex items-center justify-between pt-8 border-t border-border">
+                  <p className="text-muted-foreground">
+                    Showing {startIndex + 1} to{" "}
+                    {Math.min(endIndex, students.length)} of {students.length}{" "}
+                    students
+                  </p>
 
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className={cn(
-                    "h-10 w-10 flex items-center justify-center rounded-lg border transition-all",
-                    currentPage === 1
-                      ? "border-border text-muted-foreground cursor-not-allowed"
-                      : "border-border hover:border-primary hover:text-primary",
-                  )}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <div className="flex items-center gap-2">
                     <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
                       className={cn(
-                        "h-10 w-10 flex items-center justify-center rounded-lg text-sm font-semibold transition-all",
-                        currentPage === page
-                          ? "bg-primary text-white"
-                          : "text-muted-foreground hover:text-primary hover:bg-secondary",
+                        "h-10 w-10 flex items-center justify-center rounded-lg border transition-all",
+                        currentPage === 1
+                          ? "border-border text-muted-foreground cursor-not-allowed"
+                          : "border-border hover:border-primary hover:text-primary",
                       )}
                     >
-                      {page}
+                      <ChevronLeft className="h-5 w-5" />
                     </button>
-                  ))}
-                </div>
 
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className={cn(
-                    "h-10 w-10 flex items-center justify-center rounded-lg border transition-all",
-                    currentPage === totalPages
-                      ? "border-border text-muted-foreground cursor-not-allowed"
-                      : "border-border hover:border-primary hover:text-primary",
-                  )}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+                    <div className="flex items-center gap-1">
+                      {Array.from(
+                        { length: Math.min(totalPages, 5) },
+                        (_, i) => i + 1,
+                      ).map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={cn(
+                            "h-10 w-10 flex items-center justify-center rounded-lg text-sm font-semibold transition-all",
+                            currentPage === page
+                              ? "bg-primary text-white"
+                              : "text-muted-foreground hover:text-primary hover:bg-secondary",
+                          )}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setCurrentPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                      className={cn(
+                        "h-10 w-10 flex items-center justify-center rounded-lg border transition-all",
+                        currentPage === totalPages
+                          ? "border-border text-muted-foreground cursor-not-allowed"
+                          : "border-border hover:border-primary hover:text-primary",
+                      )}
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>
     </div>
-  )
+  );
 }
 
-function FilterChip({ label, isActive, onClick }: { label: string; isActive: boolean; onClick: () => void }) {
+function FilterChip({
+  label,
+  isActive,
+  onClick,
+}: {
+  label: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       onClick={onClick}
@@ -240,5 +271,5 @@ function FilterChip({ label, isActive, onClick }: { label: string; isActive: boo
     >
       {label}
     </button>
-  )
+  );
 }
