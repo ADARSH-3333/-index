@@ -202,7 +202,16 @@ async def get_students(
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
 
-    return [dict(row) for row in rows]
+    students = []
+    for row in rows:
+        student = dict(row)
+        student["skills"] = json.loads(student["skills"] or "[]")
+        student["internships"] = json.loads(student["internships"] or "[]")
+        student["projects"] = json.loads(student["projects"] or "[]")
+        student["placed"] = student["placed"] == "true"  # Convert to boolean
+        students.append(student)
+
+    return students
 
 
 @app.get("/students/{student_id}")
