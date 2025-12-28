@@ -1,39 +1,118 @@
-"use client"
-import * as React from "react"
-import { Navigation } from "@/components/navigation"
-import { Mail, Phone, Award, Briefcase, Code, ArrowLeft, Building2, GraduationCap } from "lucide-react"
-import Link from "next/link"
+"use client";
 
-const getStudentById = (id: string) => {
-  // Mock data - in a real app, this would be an API call
-  const students = [
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "9876543210",
-      cgpa: 8.1,
-      skills: ["Python", "SQL", "React", "Node.js"],
-      internships: ["Backend Developer at Tech Corp", "Frontend Intern at Web Solutions"],
-      projects: ["E-commerce Platform", "Student Management System"],
-      placed: true,
-      company: "Tech Corp",
-      package: "12 LPA",
-      location: "Bangalore",
-      joinDate: "July 2024",
-    },
-    // ... other students
-  ]
-  return students.find((s) => s.id === Number.parseInt(id)) || students[0]
-}
+import * as React from "react";
+import { Navigation } from "@/components/navigation";
+import {
+  Mail,
+  Phone,
+  Award,
+  Briefcase,
+  Code,
+  ArrowLeft,
+  Building2,
+  GraduationCap,
+} from "lucide-react";
+import Link from "next/link";
+import {
+  studentsApi,
+  placementsApi,
+  type Student,
+  type Placement,
+} from "@/lib/api";
 
-export default function StudentProfile({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = React.use(params)
-  const student = getStudentById(resolvedParams.id)
+export default function StudentProfile({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const resolvedParams = React.use(params);
+  const [student, setStudent] = React.useState<Student | null>(null);
+  const [placements, setPlacements] = React.useState<Placement[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetchStudentData();
+  }, [resolvedParams.id]);
+
+  const fetchStudentData = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const studentId = parseInt(resolvedParams.id);
+      const [studentData, placementsData] = await Promise.all([
+        studentsApi.getById(studentId),
+        placementsApi.getByStudent(studentId).catch(() => []), // Placements optional
+      ]);
+
+      setStudent(studentData);
+      setPlacements(placementsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load student");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation
+          currentPage="students"
+          userName="Admin User"
+          userRole="admin"
+        />
+        <main className="max-w-5xl mx-auto px-6 py-12">
+          <div className="animate-pulse space-y-8">
+            <div className="h-8 bg-gray-200 rounded w-32" />
+            <div className="h-48 bg-gray-200 rounded-2xl" />
+            <div className="grid grid-cols-3 gap-8">
+              <div className="col-span-2 h-64 bg-gray-200 rounded-2xl" />
+              <div className="h-64 bg-gray-200 rounded-2xl" />
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (error || !student) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation
+          currentPage="students"
+          userName="Admin User"
+          userRole="admin"
+        />
+        <main className="max-w-5xl mx-auto px-6 py-12">
+          <div className="text-center py-12 border-2 border-red-200 rounded-xl bg-red-50">
+            <p className="text-[24px] font-bold text-red-600">
+              Error loading student
+            </p>
+            <p className="text-red-500 mb-4">{error}</p>
+            <Link
+              href="/students"
+              className="inline-block px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            >
+              Back to Students
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Get the latest placement
+  const latestPlacement = placements.find((p) => p.status === "joined");
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation currentPage="students" userName="Admin User" userRole="admin" />
+      <Navigation
+        currentPage="students"
+        userName="Admin User"
+        userRole="admin"
+      />
 
       <main className="max-w-5xl mx-auto px-6 py-12">
         <Link
@@ -68,14 +147,17 @@ export default function StudentProfile({ params }: { params: Promise<{ id: strin
               </div>
             </div>
 
-            {student.placed && (
+            {student.placed && latestPlacement && (
               <div className="bg-secondary text-secondary-foreground px-6 py-5 rounded-xl border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
                 <div className="flex items-center gap-2 mb-1">
                   <Award className="h-5 w-5" />
-                  <span className="font-black text-lg uppercase tracking-tight">Placed</span>
+                  <span className="font-black text-lg uppercase tracking-tight">
+                    Placed
+                  </span>
                 </div>
                 <p className="font-bold">
-                  {student.company} • {student.package}
+                  {latestPlacement.company} • ₹
+                  {(latestPlacement.package / 100000).toFixed(1)}L
                 </p>
               </div>
             )}
@@ -84,68 +166,149 @@ export default function StudentProfile({ params }: { params: Promise<{ id: strin
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <section className="bg-white border-2 border-border rounded-2xl p-8">
-              <h2 className="mb-6 flex items-center gap-3">
-                <Briefcase className="h-8 w-8 text-secondary" />
-                Experience
-              </h2>
-              <div className="space-y-6">
-                {student.internships.map((exp, i) => (
-                  <div key={i} className="flex gap-4 p-4 rounded-xl bg-muted/50 border border-border">
-                    <Building2 className="h-6 w-6 text-muted-foreground mt-1" />
-                    <div>
-                      <h4 className="font-black text-xl">{exp}</h4>
-                      <p className="text-muted-foreground font-bold">2023 - Present</p>
+            {/* Placements Section */}
+            {placements.length > 0 && (
+              <section className="bg-white border-2 border-border rounded-2xl p-8">
+                <h2 className="mb-6 flex items-center gap-3">
+                  <Briefcase className="h-8 w-8 text-secondary" />
+                  Placements
+                </h2>
+                <div className="space-y-4">
+                  {placements.map((placement) => (
+                    <div
+                      key={placement.id}
+                      className="flex justify-between items-start p-4 rounded-xl bg-muted/50 border border-border"
+                    >
+                      <div className="flex gap-4">
+                        <Building2 className="h-6 w-6 text-muted-foreground mt-1" />
+                        <div>
+                          <h4 className="font-black text-xl">
+                            {placement.company}
+                          </h4>
+                          <p className="text-muted-foreground font-bold">
+                            {placement.role || "Software Engineer"}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(
+                              placement.placed_date,
+                            ).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-primary text-lg">
+                          ₹{(placement.package / 100000).toFixed(1)}L
+                        </p>
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+                            placement.status === "joined"
+                              ? "bg-green-100 text-green-700"
+                              : placement.status === "offered"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {placement.status}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
 
-            <section className="bg-white border-2 border-border rounded-2xl p-8">
-              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                <Code className="h-6 w-6 text-secondary" />
-                Technical Projects
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {student.projects.map((project, i) => (
-                  <div
-                    key={i}
-                    className="p-4 border-2 border-border rounded-xl hover:border-primary transition-colors cursor-pointer"
-                  >
-                    <h4 className="font-bold mb-1">{project}</h4>
-                    <p className="text-sm text-muted-foreground">Full Stack Development</p>
-                  </div>
-                ))}
-              </div>
-            </section>
+            {/* Internships Section */}
+            {student.internships && student.internships.length > 0 && (
+              <section className="bg-white border-2 border-border rounded-2xl p-8">
+                <h2 className="mb-6 flex items-center gap-3">
+                  <Briefcase className="h-8 w-8 text-secondary" />
+                  Experience
+                </h2>
+                <div className="space-y-6">
+                  {student.internships.map((exp, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-4 p-4 rounded-xl bg-muted/50 border border-border"
+                    >
+                      <Building2 className="h-6 w-6 text-muted-foreground mt-1" />
+                      <div>
+                        <h4 className="font-black text-xl">{exp}</h4>
+                        <p className="text-muted-foreground font-bold">
+                          2023 - Present
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Projects Section */}
+            {student.projects && student.projects.length > 0 && (
+              <section className="bg-white border-2 border-border rounded-2xl p-8">
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                  <Code className="h-6 w-6 text-secondary" />
+                  Technical Projects
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {student.projects.map((project, i) => (
+                    <div
+                      key={i}
+                      className="p-4 border-2 border-border rounded-xl hover:border-primary transition-colors cursor-pointer"
+                    >
+                      <h4 className="font-bold mb-1">
+                        {project.title || `Project ${i + 1}`}
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
+                        {project.description || "Full Stack Development"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
 
           <div className="space-y-8">
-            <section className="bg-white border-2 border-border rounded-2xl p-8">
-              <div className="flex items-center gap-2 mb-4">
-                <GraduationCap className="h-5 w-5 text-secondary" />
-                <h3 className="uppercase tracking-widest text-sm text-muted-foreground">Academic Score</h3>
-              </div>
-              <div className="p-8 bg-primary rounded-xl border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center">
-                <p className="text-6xl font-black">{student.cgpa.toFixed(2)}</p>
-                <p className="font-bold mt-2 uppercase tracking-tighter">Current CGPA</p>
-              </div>
-            </section>
+            {/* CGPA Section */}
+            {student.cgpa && (
+              <section className="bg-white border-2 border-border rounded-2xl p-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <GraduationCap className="h-5 w-5 text-secondary" />
+                  <h3 className="uppercase tracking-widest text-sm text-muted-foreground">
+                    Academic Score
+                  </h3>
+                </div>
+                <div className="p-8 bg-primary rounded-xl border-2 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-center">
+                  <p className="text-6xl font-black">
+                    {student.cgpa.toFixed(2)}
+                  </p>
+                  <p className="font-bold mt-2 uppercase tracking-tighter">
+                    Current CGPA
+                  </p>
+                </div>
+              </section>
+            )}
 
-            <section className="bg-white border-2 border-border rounded-2xl p-8">
-              <h3 className="text-xl font-bold mb-4">Skills</h3>
-              <div className="flex flex-wrap gap-2">
-                {student.skills.map((skill) => (
-                  <span key={skill} className="px-3 py-1 bg-muted rounded-md text-sm font-bold border border-border">
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </section>
+            {/* Skills Section */}
+            {student.skills && student.skills.length > 0 && (
+              <section className="bg-white border-2 border-border rounded-2xl p-8">
+                <h3 className="text-xl font-bold mb-4">Skills</h3>
+                <div className="flex flex-wrap gap-2">
+                  {student.skills.map((skill, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-muted rounded-md text-sm font-bold border border-border"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </main>
     </div>
-  )
+  );
 }

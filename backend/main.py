@@ -11,6 +11,7 @@ from cmath import e
 from datetime import datetime
 from mimetypes import inited
 from os.path import curdir, pardir
+from sqlite3.dbapi2 import paramstyle
 from sys import intern
 from typing import List, Optional
 
@@ -54,27 +55,6 @@ app.add_middleware(
 DB = "students.db"
 
 
-def init_db():
-    conn = sqlite3.connect(DB)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS students (
-        id INTEGER PRIMARY KEY,
-                   name TEXT,
-                   email TEXT UNIQUE,
-                   phone TEXT,
-                   cgpa REAL,
-                   skills TEXT,
-                   internships TEXT,
-                   projects TEXT,
-                   placed TEXT,
-                   created TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-
 pool: Optional[asyncpg.Pool] = None
 
 
@@ -115,9 +95,6 @@ async def startup():
                        placed_date TIMESTAMPTZ DEFAULT NOW()
                    )
             """)
-
-
-init_db()
 
 
 @app.on_event("shutdown")
@@ -178,31 +155,35 @@ async def get_students(
     cursor: int = 0,
     skill: Optional[str] = None,
 ):
-    query = f"SELECT * FROM students WHERE id > {cursor}"
-    params = []
+    query = f"SELECT * FROM students WHERE id > {cursor} "
     param_count = 1
+    params = []
+    print(params)
 
     if search:
         query += f"AND name ILIKE ${param_count}"
         params.append(f"%{search}%")
         param_count += 1
-
     if min_cgpa:
-        query += f"AND cgpa >= {param_count}"
-        params.append(f"%{min_cgpa}%")
+        query += f"AND cgpa >= ${param_count}"
+        params.append(float(min_cgpa))
         param_count += 1
 
     if skill:
-        query += f"AND skills LIKE ${param_count}"
+        query += f" AND skills LIKE ${param_count}"
         params.append(f"%{skill}%")
         param_count += 1
 
     query += f"  ORDER BY id LIMIT {limit} "
     print(query)
-    print(query)
+    print(params)
     async with pool.acquire() as conn:
-        rows = await conn.fetch(query, *params)
+        if search or skill or min_cgpa:
+            rows = await conn.fetch(query, *params)
+        else:
+            rows = await conn.fetch(query)
 
+    print("query", query)
     students = []
     for row in rows:
         student = dict(row)
@@ -216,10 +197,9 @@ async def get_students(
 
 
 @app.get("/students/{student_id}")
-def get_student_by_id(student_id: int):
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    row = conn.execute("SELECT * FROM STUDENTS WHERE id=?", (student_id,)).fetchone()
+async def get_student_by_id(student_id: int):
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM STUDENTS WHERE id=?", (student_id,))
 
     if row:
         student = dict(row)
@@ -267,12 +247,9 @@ def add_student(data: Student = Body(...)):
 
 @app.put("/students/{student_id}")
 async def update_student(student_id: int, data: Student = Body(...)):
-    async with pool.acquire as conn: 
-
+    async with pool.acquire as conn:
         # check if student exists
-        student = await conn.fetchrow(
-            "SELECT * FROM STUDENTS WHERE id=$1", student_id
-        )
+        student = await conn.fetchrow("SELECT * FROM STUDENTS WHERE id=$1", student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
@@ -291,13 +268,12 @@ async def update_student(student_id: int, data: Student = Body(...)):
         ),
     )
 
-    return 
+    return
 
 
 @app.delete("/students/{student_id}")
 async def delete_student(student_id: int):
     async with pool.accuire() as conn:
-
         # check if student exists
         student = await conn.fetchrow(
             ("SELECT * FROM STUDENTS WHERE id=$1", student_id)

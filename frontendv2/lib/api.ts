@@ -23,10 +23,6 @@ async function apiFetch<T>(
   return response.json();
 }
 
-// ============================================================================
-// API Functions
-// ============================================================================
-
 export interface Student {
   id: number;
   name: string;
