@@ -199,7 +199,7 @@ async def get_students(
 @app.get("/students/{student_id}")
 async def get_student_by_id(student_id: int):
     async with pool.acquire() as conn:
-        row = await conn.fetchrow("SELECT * FROM STUDENTS WHERE id=?", (student_id,))
+        row = await conn.fetchrow("SELECT * FROM students WHERE id=$1", student_id)
 
     if row:
         student = dict(row)
